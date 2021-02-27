@@ -79,6 +79,6 @@ func New(cap int, CallBack func(key string, value valueType)) *Cache {
 		used:      0,
 		cacheList: list.New(),
 		cacheMap:  make(map[string]*list.Element, 0),
-		CallBack: CallBack,
+		CallBack:  CallBack,
 	}
 }
