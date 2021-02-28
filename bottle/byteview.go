@@ -21,5 +21,3 @@ func cloneBytes(b []byte) []byte {
 	copy(s, b)
 	return s
 }
-
-

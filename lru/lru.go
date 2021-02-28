@@ -6,15 +6,15 @@ import (
 )
 
 type Cache struct {
-	cap int
-	used int
+	cap       int
+	used      int
 	cacheList *list.List
-	cacheMap map[string]*list.Element
-	CallBack func(key string, value valueType)
+	cacheMap  map[string]*list.Element
+	CallBack  func(key string, value valueType)
 }
 
 type entry struct {
-	key string
+	key   string
 	value valueType
 }
 
@@ -49,7 +49,7 @@ func (c *Cache) Add(key string, value valueType) {
 	if elem, exist := c.cacheMap[key]; exist {
 		kv := elem.Value.(*entry)
 		extra := value.Len() - kv.value.Len()
-		if c.cap - c.used < extra {
+		if c.cap-c.used < extra {
 			return
 		} else {
 			c.cacheList.MoveToBack(elem)
@@ -62,7 +62,7 @@ func (c *Cache) Add(key string, value valueType) {
 		if need > c.cap {
 			return
 		}
-		for c.cap - c.used < need {
+		for c.cap-c.used < need {
 			c.Remove()
 		}
 		c.cacheList.PushBack(&entry{

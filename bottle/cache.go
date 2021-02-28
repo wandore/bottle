@@ -6,7 +6,7 @@ import (
 )
 
 type cache struct {
-	mu sync.RWMutex
+	mu  sync.RWMutex
 	lru *lru.Cache
 	cap int
 }
@@ -41,5 +41,3 @@ type GetterFunc func(key string) ([]byte, error)
 func (f GetterFunc) Get(key string) ([]byte, error) {
 	return f(key)
 }
-
-

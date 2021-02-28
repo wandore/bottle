@@ -1,19 +1,22 @@
 package bottle
 
 import (
+	"bottle/protect"
 	"fmt"
 	"log"
 	"sync"
 )
 
 type Bottle struct {
-	name string
-	getter Getter
-	bottle cache
+	name    string
+	getter  Getter
+	bottle  cache
+	nodes   NodeRouter
+	handler *protect.Handler
 }
 
 var (
-	mu sync.RWMutex
+	mu        sync.RWMutex
 	bottleMap = make(map[string]*Bottle, 0)
 )
 
@@ -26,9 +29,10 @@ func NewBottle(name string, cap int, getter Getter) *Bottle {
 	defer mu.Unlock()
 
 	g := &Bottle{
-		name:   name,
-		getter: getter,
-		bottle: cache{cap: cap},
+		name:    name,
+		getter:  getter,
+		bottle:  cache{cap: cap},
+		handler: &protect.Handler{},
 	}
 	bottleMap[name] = g
 	return g
@@ -52,7 +56,24 @@ func (g *Bottle) Get(key string) (ByteView, error) {
 		return v, nil
 	}
 
-	return g.getLocally(key)
+	v, err := g.handler.Query(key, func() (interface{}, error) {
+		if g.nodes != nil {
+			if node, ok := g.nodes.NodeRoute(key); ok {
+				if value, err := g.getFromNode(node, key); err == nil {
+					return value, nil
+				} else {
+					log.Println("Failed to get from node: ", node)
+				}
+			}
+		}
+		return g.getLocally(key)
+	})
+
+	if err != nil {
+		return ByteView{}, err
+	}
+
+	return v.(ByteView), nil
 }
 
 func (g *Bottle) getLocally(key string) (ByteView, error) {
@@ -66,4 +87,19 @@ func (g *Bottle) getLocally(key string) (ByteView, error) {
 	return s, nil
 }
 
+func (g *Bottle) Register(nodes NodeRouter) {
+	if g.nodes != nil {
+		log.Fatal("Nodes has been registered already.")
+	}
 
+	g.nodes = nodes
+}
+
+func (g *Bottle) getFromNode(node NodeGetter, key string) (ByteView, error) {
+	bytes, err := node.NodeGet(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+
+	return ByteView{b: bytes}, nil
+}

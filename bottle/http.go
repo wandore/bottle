@@ -1,16 +1,24 @@
 package bottle
 
 import (
+	"bottle/hash"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 )
 
-const PrefixPath = "/bottle/"
+const (
+	PrefixPath = "/bottle/"
+	Backup     = 10
+)
 
 type HttpPool struct {
-	addr string
-	prefix string
+	addr    string
+	prefix  string
+	mu      sync.RWMutex
+	conHash *hash.ConHash
+	httpMap map[string]*httpGetter
 }
 
 func NewHttpPool(addr string) *HttpPool {
@@ -36,7 +44,7 @@ func (p *HttpPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bottleName := adds[0]
 	bottle := GetBottle(bottleName)
 	if bottle == nil {
-		http.Error(w, "no bottle: " + bottleName, http.StatusNotFound)
+		http.Error(w, "no bottle: "+bottleName, http.StatusNotFound)
 		return
 	}
 
@@ -49,4 +57,30 @@ func (p *HttpPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(value.Clone())
+}
+
+func (p *HttpPool) Set(nodes ...string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.conHash = hash.New(Backup, nil)
+	p.conHash.Add(nodes...)
+
+	p.httpMap = make(map[string]*httpGetter, len(nodes))
+
+	for _, node := range nodes {
+		p.httpMap[node] = &httpGetter{addr: node + PrefixPath}
+	}
+}
+
+func (p *HttpPool) NodeRoute(key string) (NodeGetter, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if node := p.conHash.Get(key); node != "" && node != p.addr {
+		log.Println("Choose node: " + node)
+		return p.httpMap[node], true
+	}
+
+	return nil, false
 }
